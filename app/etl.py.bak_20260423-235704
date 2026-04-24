@@ -1,0 +1,358 @@
+"""
+ETL multi-tenant ContaAzul → Postgres.
+
+Uso programático:
+    from app.etl import sincronizar_empresa
+    sincronizar_empresa(empresa_id)
+
+Para cada empresa:
+    1. Obtém access_token (com refresh automático)
+    2. Para cada endpoint: grava payload bruto em staging_ca.raw_eventos
+    3. Materializa dims e fatos em mart_ca via UPSERT
+    4. Registra status em core.sync_control
+"""
+from __future__ import annotations
+
+import hashlib
+import json
+import logging
+from datetime import datetime, timezone
+from typing import Any, Callable, Iterator
+
+from psycopg import Connection
+from psycopg.types.json import Jsonb
+
+from .contaazul import ContaAzulClient
+from .db import get_conn
+from .oauth import get_access_token
+
+log = logging.getLogger(__name__)
+
+# =============================================================================
+# Orquestração
+# =============================================================================
+def sincronizar_empresa(empresa_id: str) -> dict[str, Any]:
+    """Sincroniza todos os endpoints de uma empresa. Retorna resumo."""
+    resumo: dict[str, Any] = {"empresa_id": empresa_id, "endpoints": {}}
+
+    with get_conn() as conn:
+        access_token = get_access_token(conn, empresa_id)
+
+    with ContaAzulClient(access_token) as client, get_conn() as conn:
+        jobs: list[tuple[str, Callable[[], Iterator[dict]]]] = [
+            ("categorias",         client.listar_categorias),
+            ("centros_custo",      client.listar_centros_custo),
+            ("contas_financeiras", client.listar_contas_financeiras),
+            ("contas_pagar",       lambda: client.buscar_contas_pagar()),
+            ("contas_receber",     lambda: client.buscar_contas_receber()),
+            ("vendas",             lambda: client.listar_vendas()),
+        ]
+        for nome, gen_fn in jobs:
+            try:
+                qtd = _sync_endpoint(conn, empresa_id, nome, gen_fn())
+                resumo["endpoints"][nome] = {"status": "success", "registros": qtd}
+            except Exception as e:  # noqa: BLE001
+                log.exception("Falha sincronizando %s", nome)
+                resumo["endpoints"][nome] = {"status": "error", "erro": str(e)}
+
+        # Parcelas (dependem de contas_pagar/receber já em staging)
+        try:
+            qtd = _sync_parcelas(conn, empresa_id, client)
+            resumo["endpoints"]["parcelas"] = {"status": "success", "registros": qtd}
+        except Exception as e:  # noqa: BLE001
+            log.exception("Falha sincronizando parcelas")
+            resumo["endpoints"]["parcelas"] = {"status": "error", "erro": str(e)}
+
+        # Materializa camada mart
+        try:
+            _materializar_mart(conn, empresa_id)
+            resumo["mart"] = "success"
+        except Exception as e:  # noqa: BLE001
+            log.exception("Falha materializando mart")
+            resumo["mart"] = f"erro: {e}"
+
+        # Marca ultimo_sync_em
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE core.clientes SET ultimo_sync_em = NOW() WHERE id = %s",
+                (empresa_id,),
+            )
+        conn.commit()
+
+    return resumo
+
+
+# =============================================================================
+# Staging — grava JSONB bruto
+# =============================================================================
+def _sync_endpoint(
+    conn: Connection, empresa_id: str, endpoint: str, itens: Iterator[dict[str, Any]]
+) -> int:
+    sync_id = _abrir_sync(conn, empresa_id, endpoint)
+    qtd = 0
+    try:
+        with conn.cursor() as cur:
+            for item in itens:
+                id_ext = _extrair_id(item)
+                if id_ext is None:
+                    continue
+                payload_str = json.dumps(item, sort_keys=True, default=str)
+                hash_p = hashlib.sha256(payload_str.encode()).hexdigest()
+                cur.execute(
+                    """
+                    INSERT INTO staging_ca.raw_eventos
+                        (empresa_id, endpoint, id_externo, payload, hash_payload)
+                    VALUES (%s, %s, %s, %s, %s)
+                    ON CONFLICT (empresa_id, endpoint, id_externo) DO UPDATE
+                       SET payload         = EXCLUDED.payload,
+                           hash_payload    = EXCLUDED.hash_payload,
+                           sincronizado_em = NOW()
+                     WHERE staging_ca.raw_eventos.hash_payload <> EXCLUDED.hash_payload
+                    """,
+                    (empresa_id, endpoint, id_ext, Jsonb(item), hash_p),
+                )
+                qtd += 1
+        conn.commit()
+        _fechar_sync(conn, sync_id, "success", qtd)
+    except Exception as e:  # noqa: BLE001
+        conn.rollback()
+        _fechar_sync(conn, sync_id, "error", qtd, str(e))
+        raise
+    return qtd
+
+
+def _sync_parcelas(conn: Connection, empresa_id: str, client: ContaAzulClient) -> int:
+    """Itera eventos já em staging e busca suas parcelas."""
+    sync_id = _abrir_sync(conn, empresa_id, "parcelas")
+    qtd = 0
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT id_externo, endpoint
+                  FROM staging_ca.raw_eventos
+                 WHERE empresa_id = %s AND endpoint IN ('contas_pagar','contas_receber')
+                """,
+                (empresa_id,),
+            )
+            eventos = cur.fetchall()
+
+        with conn.cursor() as cur:
+            for id_ext, endpoint_pai in eventos:
+                try:
+                    parcelas = client.parcelas_do_evento(id_ext)
+                except Exception as e:  # noqa: BLE001
+                    log.warning("evento %s sem parcelas (%s): %s", id_ext, endpoint_pai, e)
+                    continue
+                for p in parcelas:
+                    pid = _extrair_id(p)
+                    if pid is None:
+                        continue
+                    p["_evento_id"] = id_ext
+                    p["_evento_tipo"] = endpoint_pai
+                    payload_str = json.dumps(p, sort_keys=True, default=str)
+                    hash_p = hashlib.sha256(payload_str.encode()).hexdigest()
+                    cur.execute(
+                        """
+                        INSERT INTO staging_ca.raw_eventos
+                            (empresa_id, endpoint, id_externo, payload, hash_payload)
+                        VALUES (%s, 'parcelas', %s, %s, %s)
+                        ON CONFLICT (empresa_id, endpoint, id_externo) DO UPDATE
+                           SET payload         = EXCLUDED.payload,
+                               hash_payload    = EXCLUDED.hash_payload,
+                               sincronizado_em = NOW()
+                         WHERE staging_ca.raw_eventos.hash_payload <> EXCLUDED.hash_payload
+                        """,
+                        (empresa_id, pid, Jsonb(p), hash_p),
+                    )
+                    qtd += 1
+        conn.commit()
+        _fechar_sync(conn, sync_id, "success", qtd)
+    except Exception as e:  # noqa: BLE001
+        conn.rollback()
+        _fechar_sync(conn, sync_id, "error", qtd, str(e))
+        raise
+    return qtd
+
+
+# =============================================================================
+# Mart — materialização a partir do staging
+# =============================================================================
+def _materializar_mart(conn: Connection, empresa_id: str) -> None:
+    with conn.cursor() as cur:
+        # Categorias
+        cur.execute(
+            """
+            INSERT INTO mart_ca.dim_categoria (empresa_id, categoria_id, nome, tipo, ativo)
+            SELECT %s,
+                   id_externo,
+                   payload->>'nome',
+                   UPPER(payload->>'tipo'),
+                   COALESCE((payload->>'ativo')::bool, TRUE)
+              FROM staging_ca.raw_eventos
+             WHERE empresa_id = %s AND endpoint = 'categorias'
+            ON CONFLICT (empresa_id, categoria_id) DO UPDATE
+               SET nome  = EXCLUDED.nome,
+                   tipo  = EXCLUDED.tipo,
+                   ativo = EXCLUDED.ativo
+            """,
+            (empresa_id, empresa_id),
+        )
+
+        # Centros de custo
+        cur.execute(
+            """
+            INSERT INTO mart_ca.dim_centro_custo (empresa_id, centro_id, nome, ativo)
+            SELECT %s,
+                   id_externo,
+                   payload->>'nome',
+                   COALESCE((payload->>'ativo')::bool, TRUE)
+              FROM staging_ca.raw_eventos
+             WHERE empresa_id = %s AND endpoint = 'centros_custo'
+            ON CONFLICT (empresa_id, centro_id) DO UPDATE
+               SET nome  = EXCLUDED.nome,
+                   ativo = EXCLUDED.ativo
+            """,
+            (empresa_id, empresa_id),
+        )
+
+        # Contas financeiras
+        cur.execute(
+            """
+            INSERT INTO mart_ca.dim_conta_financeira
+                (empresa_id, conta_id, nome, tipo, saldo_inicial, ativo)
+            SELECT %s,
+                   id_externo,
+                   payload->>'nome',
+                   payload->>'tipo',
+                   NULLIF(payload->>'saldoInicial','')::numeric,
+                   COALESCE((payload->>'ativo')::bool, TRUE)
+              FROM staging_ca.raw_eventos
+             WHERE empresa_id = %s AND endpoint = 'contas_financeiras'
+            ON CONFLICT (empresa_id, conta_id) DO UPDATE
+               SET nome          = EXCLUDED.nome,
+                   tipo          = EXCLUDED.tipo,
+                   saldo_inicial = EXCLUDED.saldo_inicial,
+                   ativo         = EXCLUDED.ativo
+            """,
+            (empresa_id, empresa_id),
+        )
+
+        # Parcelas (fato principal)
+        cur.execute(
+            """
+            INSERT INTO mart_ca.fato_parcela (
+                empresa_id, parcela_id, evento_id, tipo, numero,
+                data_vencimento, data_pagamento, valor_previsto, valor_pago,
+                status, categoria_id, centro_custo_id, conta_id,
+                pessoa_nome, descricao
+            )
+            SELECT %s,
+                   id_externo,
+                   payload->>'_evento_id',
+                   CASE
+                       WHEN payload->>'_evento_tipo' = 'contas_pagar'    THEN 'PAGAR'
+                       WHEN payload->>'_evento_tipo' = 'contas_receber'  THEN 'RECEBER'
+                       ELSE UPPER(COALESCE(payload->>'tipo',''))
+                   END,
+                   NULLIF(payload->>'numero','')::int,
+                   NULLIF(payload->>'dataVencimento','')::date,
+                   NULLIF(payload->>'dataPagamento','')::date,
+                   NULLIF(payload->>'valor','')::numeric,
+                   NULLIF(payload->>'valorPago','')::numeric,
+                   UPPER(COALESCE(payload->>'status','')),
+                   payload->>'categoriaId',
+                   payload->>'centroCustoId',
+                   payload->>'contaFinanceiraId',
+                   payload->>'pessoaNome',
+                   payload->>'descricao'
+              FROM staging_ca.raw_eventos
+             WHERE empresa_id = %s AND endpoint = 'parcelas'
+            ON CONFLICT (empresa_id, parcela_id) DO UPDATE
+               SET evento_id       = EXCLUDED.evento_id,
+                   tipo            = EXCLUDED.tipo,
+                   numero          = EXCLUDED.numero,
+                   data_vencimento = EXCLUDED.data_vencimento,
+                   data_pagamento  = EXCLUDED.data_pagamento,
+                   valor_previsto  = EXCLUDED.valor_previsto,
+                   valor_pago      = EXCLUDED.valor_pago,
+                   status          = EXCLUDED.status,
+                   categoria_id    = EXCLUDED.categoria_id,
+                   centro_custo_id = EXCLUDED.centro_custo_id,
+                   conta_id        = EXCLUDED.conta_id,
+                   pessoa_nome     = EXCLUDED.pessoa_nome,
+                   descricao       = EXCLUDED.descricao
+            """,
+            (empresa_id, empresa_id),
+        )
+
+        # Vendas
+        cur.execute(
+            """
+            INSERT INTO mart_ca.fato_venda
+                (empresa_id, venda_id, numero, data_venda, cliente_nome,
+                 valor_total, valor_desconto, status)
+            SELECT %s,
+                   id_externo,
+                   payload->>'numero',
+                   NULLIF(payload->>'dataVenda','')::date,
+                   payload->>'clienteNome',
+                   NULLIF(payload->>'valorTotal','')::numeric,
+                   NULLIF(payload->>'valorDesconto','')::numeric,
+                   UPPER(COALESCE(payload->>'status',''))
+              FROM staging_ca.raw_eventos
+             WHERE empresa_id = %s AND endpoint = 'vendas'
+            ON CONFLICT (empresa_id, venda_id) DO UPDATE
+               SET numero         = EXCLUDED.numero,
+                   data_venda     = EXCLUDED.data_venda,
+                   cliente_nome   = EXCLUDED.cliente_nome,
+                   valor_total    = EXCLUDED.valor_total,
+                   valor_desconto = EXCLUDED.valor_desconto,
+                   status         = EXCLUDED.status
+            """,
+            (empresa_id, empresa_id),
+        )
+    conn.commit()
+
+
+# =============================================================================
+# Helpers
+# =============================================================================
+def _extrair_id(item: dict[str, Any]) -> str | None:
+    for k in ("id", "uuid", "codigo", "identificador"):
+        v = item.get(k)
+        if v is not None:
+            return str(v)
+    return None
+
+
+def _abrir_sync(conn: Connection, empresa_id: str, endpoint: str) -> int:
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            INSERT INTO core.sync_control (empresa_id, endpoint)
+            VALUES (%s, %s) RETURNING id
+            """,
+            (empresa_id, endpoint),
+        )
+        sid = cur.fetchone()[0]
+    conn.commit()
+    return sid
+
+
+def _fechar_sync(
+    conn: Connection, sync_id: int, status: str, registros: int, erro: str | None = None
+) -> None:
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            UPDATE core.sync_control
+               SET finalizado_em = NOW(),
+                   status        = %s,
+                   registros     = %s,
+                   mensagem_erro = %s
+             WHERE id = %s
+            """,
+            (status, registros, erro, sync_id),
+        )
+    conn.commit()

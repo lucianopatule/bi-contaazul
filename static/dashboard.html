@@ -1,0 +1,819 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ContaAzul BI — PED Intelligence</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --brand-base:#2E0551;
+  --bg:#1A0230;
+  --bg-2:#240440;
+  --panel:#2E0551;
+  --panel2:#3A076A;
+  --card:#4A0A85;
+  --border:rgba(220,200,255,.18);
+  --line:rgba(220,200,255,.10);
+  --text:#F2EDFF;
+  --muted:#C9B8EA;
+  --dim:#8E7CB8;
+  --gold:#E5B943;
+  --pink:#EC2E9A;
+  --magenta:#D81B8E;
+  --purple:#9333EA;    --purple-2:#A855F7;
+  --blue:#3B82F6;      --blue-2:#60A5FA;
+  --cyan:#06B6D4;      --cyan-2:#22D3EE;
+  --teal:#14B8A6;
+  --green:#10B981;     --green-2:#22C55E;
+  --yellow:#F59E0B;    --amber:#FBBF24;
+  --red:#EF4444;       --red-2:#F87171;
+  --grad-brand: linear-gradient(135deg,#EC2E9A 0%,#9333EA 35%,#3B82F6 70%,#06B6D4 100%);
+  --grad-pink-purple: linear-gradient(135deg,#EC2E9A,#9333EA);
+  --grad-purple-blue: linear-gradient(135deg,#9333EA,#3B82F6);
+  --grad-blue-cyan:   linear-gradient(135deg,#3B82F6,#06B6D4);
+  --grad-green:       linear-gradient(135deg,#10B981,#22C55E);
+  --grad-red:         linear-gradient(135deg,#EF4444,#F59E0B);
+  --shadow: 0 10px 40px rgba(147,51,234,.15), 0 2px 8px rgba(0,0,0,.35);
+  --radius: 14px;
+  --radius-sm: 8px;
+  --font: 'Inter','Segoe UI',system-ui,-apple-system,Arial,sans-serif;
+  --font-mono: 'JetBrains Mono','Consolas',monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:var(--font);font-size:13px;line-height:1.45}
+body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:0;
+  background:
+    radial-gradient(1200px 600px at -10% -10%, rgba(236,46,154,.10), transparent 60%),
+    radial-gradient(900px 600px at 110% 0%, rgba(6,182,212,.08), transparent 60%),
+    radial-gradient(900px 600px at 50% 120%, rgba(229,185,67,.08), transparent 60%),
+    radial-gradient(1000px 700px at 50% 50%, rgba(46,5,81,.4), transparent 70%);
+}
+.app{display:grid;grid-template-columns:248px 1fr;min-height:100vh;position:relative;z-index:1}
+.hidden{display:none !important}
+.sidebar{background:linear-gradient(180deg,rgba(15,9,42,.85),rgba(10,8,24,.85));backdrop-filter:blur(18px);border-right:1px solid var(--border);padding:20px 14px;position:sticky;top:0;height:100vh;overflow-y:auto}
+.brand{display:flex;flex-direction:column;align-items:center;gap:10px;margin-bottom:22px;padding:8px 4px 12px;border-bottom:1px solid var(--line)}
+.brand-logo{width:120px;height:120px;border-radius:18px;display:flex;align-items:center;justify-content:center;background:var(--grad-brand);box-shadow:0 8px 24px rgba(0,0,0,.45),0 0 0 1.5px rgba(255,255,255,.6);font-weight:800;font-size:20px;color:#fff;letter-spacing:1.5px;text-align:center;line-height:1.1}
+.brand-title{font-size:13px;font-weight:800;color:var(--text);letter-spacing:1px;text-align:center}
+.brand-sub{color:var(--gold);font-size:10px;letter-spacing:1.4px;font-weight:800;text-transform:uppercase;text-align:center;margin-top:-2px}
+.nav-item{display:flex;align-items:center;gap:11px;padding:10px 12px;border-radius:10px;cursor:pointer;color:var(--muted);font-weight:500;margin-bottom:4px;position:relative;transition:all .15s ease}
+.nav-item:hover{background:rgba(147,51,234,.12);color:var(--text);transform:translateX(2px)}
+.nav-item.active{background:linear-gradient(90deg,rgba(236,46,154,.18),rgba(147,51,234,.12) 40%,transparent);color:#fff}
+.nav-item.active::before{content:"";position:absolute;left:0;top:8px;bottom:8px;width:3px;border-radius:2px;background:var(--grad-brand)}
+.nav-ico{width:18px;height:18px;flex:0 0 18px;opacity:.9}
+.nav-title{font-size:10.5px;color:var(--dim);text-transform:uppercase;letter-spacing:1px;margin:16px 8px 6px;font-weight:700}
+.main{display:flex;flex-direction:column;min-width:0}
+.topbar{background:rgba(21,16,58,.75);backdrop-filter:blur(18px) saturate(150%);border-bottom:1px solid var(--border);padding:14px 22px;display:flex;gap:18px;flex-wrap:wrap;align-items:end;position:sticky;top:0;z-index:10;box-shadow:0 4px 20px rgba(0,0,0,.25)}
+.filter-group{display:flex;flex-direction:column;gap:5px;min-width:150px}
+.filter-group label{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.7px;font-weight:700}
+.select-box{background:rgba(28,21,72,.7);border:1px solid var(--border);color:var(--text);padding:7px 11px;border-radius:8px;font-size:12px;cursor:pointer;min-height:34px;transition:all .15s ease;min-width:220px}
+.select-box:hover{border-color:var(--purple-2);background:rgba(168,85,247,.1)}
+.btn-sync{background:var(--grad-purple-blue);color:#fff;border:0;padding:8px 14px;border-radius:8px;font-weight:700;cursor:pointer;font-size:12px;min-height:34px;transition:all .15s}
+.btn-sync:hover{filter:brightness(1.15);transform:translateY(-1px)}
+.btn-sync:disabled{opacity:.5;cursor:wait}
+.sync-status{font-size:11px;color:var(--muted)}
+.sync-status.ok{color:var(--green-2)}
+.sync-status.err{color:var(--red-2)}
+.content{padding:24px;display:flex;flex-direction:column;gap:20px}
+.page-title{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;margin-bottom:8px}
+.page-title h1{margin:0;font-size:22px;font-weight:800;letter-spacing:-.3px;background:var(--grad-brand);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+.page-title .subtitle{color:var(--muted);font-size:12px;margin-top:3px}
+.grid-kpi{display:grid;grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));gap:14px}
+.kpi{background:linear-gradient(135deg,rgba(74,10,133,.6),rgba(46,5,81,.6));border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;position:relative;overflow:hidden;box-shadow:var(--shadow);transition:all .18s}
+.kpi:hover{transform:translateY(-2px);border-color:var(--purple-2);box-shadow:0 14px 44px rgba(147,51,234,.22)}
+.kpi::before{content:"";position:absolute;top:0;left:0;right:0;height:3px;background:var(--grad-brand)}
+.kpi.green::before{background:var(--grad-green)}
+.kpi.red::before{background:var(--grad-red)}
+.kpi.blue::before{background:var(--grad-blue-cyan)}
+.kpi.gold::before{background:linear-gradient(135deg,#F59E0B,#E5B943)}
+.kpi-label{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.7px;font-weight:700;margin-bottom:6px}
+.kpi-value{font-size:22px;font-weight:800;color:var(--text);font-variant-numeric:tabular-nums;letter-spacing:-.5px}
+.kpi-sub{font-size:11px;color:var(--dim);margin-top:3px;font-weight:500}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.grid-3{display:grid;grid-template-columns:repeat(3, 1fr);gap:16px}
+@media (max-width: 1100px){ .grid-2, .grid-3{grid-template-columns:1fr} }
+.panel{background:linear-gradient(135deg,rgba(58,7,106,.6),rgba(46,5,81,.5));border:1px solid var(--border);border-radius:var(--radius);padding:16px 18px;box-shadow:var(--shadow)}
+.panel h3{margin:0 0 6px;font-size:13px;font-weight:700;color:var(--text);letter-spacing:.2px}
+.panel .sub{color:var(--muted);font-size:11px;margin-bottom:10px}
+.chart-wrap{position:relative;height:280px}
+.chart-wrap.tall{height:360px}
+.chart-wrap.short{height:200px}
+table.bi{width:100%;border-collapse:collapse;font-size:12px;font-variant-numeric:tabular-nums}
+table.bi th, table.bi td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:left}
+table.bi th{color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.6px;font-weight:700;background:rgba(28,21,72,.3);position:sticky;top:0}
+table.bi tbody tr:hover{background:rgba(147,51,234,.08)}
+.tbl-wrap{max-height:460px;overflow:auto;border-radius:var(--radius-sm);border:1px solid var(--line)}
+.num{text-align:right;font-variant-numeric:tabular-nums}
+.pill{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;letter-spacing:.4px}
+.pill.rec{background:rgba(16,185,129,.2);color:#4ade80}
+.pill.pag{background:rgba(239,68,68,.18);color:#fca5a5}
+.pill.liq{background:rgba(34,211,238,.18);color:#67e8f9}
+.pill.aberto{background:rgba(168,85,247,.18);color:#c4b5fd}
+.pill.vencido{background:rgba(239,68,68,.22);color:#fca5a5}
+.pill.avencer{background:rgba(245,158,11,.18);color:#fcd34d}
+.empty-state{text-align:center;padding:40px 20px;color:var(--muted)}
+.empty-state h4{margin:0 0 6px;color:var(--text);font-size:15px}
+.loader{display:inline-block;width:16px;height:16px;border:2.5px solid rgba(168,85,247,.3);border-top-color:var(--purple-2);border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ===== Página Administração ===== */
+.stepper{display:flex;gap:10px;margin-bottom:18px;flex-wrap:wrap}
+.step{flex:1;min-width:140px;padding:10px 12px;border-radius:10px;background:rgba(58,7,106,.4);border:1px solid var(--line);display:flex;align-items:center;gap:10px;font-size:11.5px;font-weight:600;opacity:.5;transition:all .15s}
+.step.active{opacity:1;background:rgba(147,51,234,.22);border-color:var(--purple-2);box-shadow:0 4px 16px rgba(147,51,234,.2)}
+.step.done{opacity:1;background:rgba(16,185,129,.15);border-color:var(--green);color:var(--green-2)}
+.step-num{width:24px;height:24px;border-radius:50%;background:var(--grad-brand);color:#fff;font-weight:800;display:flex;align-items:center;justify-content:center;font-size:11px;flex:0 0 24px}
+.step.done .step-num{background:var(--grad-green)}
+.admin-step{margin-bottom:14px;transition:opacity .2s}
+.admin-step.disabled{opacity:.35;pointer-events:none;filter:saturate(.3)}
+.admin-form label{display:block;font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.7px;font-weight:700;margin-top:12px;margin-bottom:4px}
+.admin-form input, .admin-form textarea{font-family:var(--font);width:100%}
+.adm-status{margin-top:12px;font-size:12px;padding:9px 12px;border-radius:8px;display:none}
+.adm-status.show{display:block}
+.adm-status.ok{background:rgba(16,185,129,.12);color:var(--green-2);border:1px solid rgba(16,185,129,.3)}
+.adm-status.err{background:rgba(239,68,68,.12);color:var(--red-2);border:1px solid rgba(239,68,68,.3)}
+.adm-status.info{background:rgba(59,130,246,.12);color:#93c5fd;border:1px solid rgba(59,130,246,.3)}
+.btn-primary{background:var(--grad-purple-blue);color:#fff;border:0;padding:10px 18px;border-radius:8px;font-weight:700;cursor:pointer;font-size:12.5px;transition:all .15s;font-family:var(--font)}
+.btn-primary:hover{filter:brightness(1.15);transform:translateY(-1px);box-shadow:0 6px 20px rgba(59,130,246,.3)}
+.btn-primary:disabled{opacity:.5;cursor:wait}
+.btn-sm{padding:5px 10px;font-size:10.5px;border-radius:6px;background:rgba(147,51,234,.25);border:1px solid rgba(168,85,247,.35);color:var(--text);cursor:pointer;font-family:var(--font);font-weight:600;margin-right:4px;transition:all .12s}
+.btn-sm:hover{background:rgba(147,51,234,.4);border-color:var(--purple-2)}
+.help-box{background:rgba(229,185,67,.08);border-left:3px solid var(--gold);padding:10px 14px;border-radius:6px;font-size:12px;color:var(--muted);margin:10px 0}
+.help-box strong{color:var(--gold)}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-logo">PED</div>
+      <div class="brand-title">PED Intelligence</div>
+      <div class="brand-sub">BI ContaAzul</div>
+    </div>
+    <div class="nav-title">Análise</div>
+    <div class="nav-item active" data-page="resumo">
+      <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>
+      <span>Resumo Executivo</span>
+    </div>
+    <div class="nav-item" data-page="fluxo">
+      <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M7 14l4-6 4 4 5-7"/></svg>
+      <span>Fluxo de Caixa</span>
+    </div>
+    <div class="nav-item" data-page="receber">
+      <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+      <span>Contas a Receber</span>
+    </div>
+    <div class="nav-item" data-page="pagar">
+      <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7v10l10 5 10-5V7l-10-5z"/><path d="M12 22V12"/></svg>
+      <span>Contas a Pagar</span>
+    </div>
+    <div class="nav-item" data-page="dre">
+      <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20V10M10 20V4M16 20v-8M22 20H2"/></svg>
+      <span>DRE por Categoria</span>
+    </div>
+    <div class="nav-item" data-page="vendas">
+      <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.7 13.4a2 2 0 0 0 2 1.6h9.7a2 2 0 0 0 2-1.6L23 6H6"/></svg>
+      <span>Vendas</span>
+    </div>
+    <div class="nav-title">Fontes</div>
+    <div class="nav-item" onclick="window.open('/docs','_blank')">
+      <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+      <span>API Docs</span>
+    </div>
+    <div class="nav-title">Gestão</div>
+    <div class="nav-item" data-page="admin">
+      <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><path d="M20 8v6M23 11h-6"/></svg>
+      <span>Administração</span>
+    </div>
+  </aside>
+  <main class="main">
+    <div class="topbar">
+      <div class="filter-group">
+        <label>Empresa</label>
+        <select class="select-box" id="empresa-select"><option value="">Carregando...</option></select>
+      </div>
+      <div class="filter-group">
+        <label>Ações</label>
+        <button class="btn-sync" id="btn-sync">Sincronizar dados</button>
+      </div>
+      <div class="filter-group">
+        <label>Status Sync</label>
+        <div class="sync-status" id="sync-status">—</div>
+      </div>
+      <div class="filter-group">
+        <label>Último sync</label>
+        <div class="sync-status" id="last-sync">—</div>
+      </div>
+    </div>
+    <div class="content">
+      <section id="page-resumo">
+        <div class="page-title"><div><h1>Resumo Executivo</h1><div class="subtitle">Visão geral financeira da empresa selecionada</div></div></div>
+        <div class="grid-kpi" id="kpi-cards"></div>
+        <div class="grid-2">
+          <div class="panel"><h3>Aging de Recebíveis</h3><div class="sub">Distribuição de valores a receber por faixa de vencimento</div><div class="chart-wrap"><canvas id="ch-aging-receber"></canvas></div></div>
+          <div class="panel"><h3>Aging de Pagáveis</h3><div class="sub">Distribuição de valores a pagar por faixa de vencimento</div><div class="chart-wrap"><canvas id="ch-aging-pagar"></canvas></div></div>
+        </div>
+        <div class="panel"><h3>Top 10 Categorias de Receita</h3><div class="sub">Ranking das categorias que mais movimentam financeiramente</div><div class="chart-wrap tall"><canvas id="ch-top-categorias"></canvas></div></div>
+      </section>
+      <section id="page-fluxo" class="hidden">
+        <div class="page-title"><div><h1>Fluxo de Caixa</h1><div class="subtitle">Entradas × Saídas (previstas e realizadas) no tempo</div></div></div>
+        <div class="panel"><h3>Evolução temporal</h3><div class="sub">Linhas sólidas = realizado; pontilhadas = previsto</div><div class="chart-wrap tall"><canvas id="ch-fluxo"></canvas></div></div>
+        <div class="grid-2">
+          <div class="panel"><h3>Saldo acumulado</h3><div class="sub">Entrada realizada - Saída realizada, cumulativo</div><div class="chart-wrap"><canvas id="ch-saldo-acum"></canvas></div></div>
+          <div class="panel"><h3>Totais do período</h3><div class="tbl-wrap"><table class="bi" id="tbl-fluxo-totais"><thead><tr><th>Indicador</th><th class="num">Valor</th></tr></thead><tbody></tbody></table></div></div>
+        </div>
+      </section>
+      <section id="page-receber" class="hidden">
+        <div class="page-title"><div><h1>Contas a Receber</h1><div class="subtitle">Parcelas com tipo RECEBER — detalhado</div></div></div>
+        <div class="panel"><h3>Lista de Recebíveis</h3><div class="sub" id="sub-receber">—</div><div class="tbl-wrap" style="max-height:560px"><table class="bi" id="tbl-receber"><thead><tr><th>Cliente</th><th>Descrição</th><th>Vencimento</th><th>Pagamento</th><th class="num">Previsto</th><th class="num">Pago</th><th class="num">Saldo</th><th>Situação</th><th class="num">Atraso</th></tr></thead><tbody></tbody></table></div></div>
+      </section>
+      <section id="page-pagar" class="hidden">
+        <div class="page-title"><div><h1>Contas a Pagar</h1><div class="subtitle">Parcelas com tipo PAGAR — detalhado</div></div></div>
+        <div class="panel"><h3>Lista de Pagáveis</h3><div class="sub" id="sub-pagar">—</div><div class="tbl-wrap" style="max-height:560px"><table class="bi" id="tbl-pagar"><thead><tr><th>Fornecedor</th><th>Descrição</th><th>Vencimento</th><th>Pagamento</th><th class="num">Previsto</th><th class="num">Pago</th><th class="num">Saldo</th><th>Situação</th><th class="num">Atraso</th></tr></thead><tbody></tbody></table></div></div>
+      </section>
+      <section id="page-dre" class="hidden">
+        <div class="page-title"><div><h1>DRE por Categoria</h1><div class="subtitle">Receitas e despesas agrupadas por categoria e mês</div></div></div>
+        <div class="grid-2">
+          <div class="panel"><h3>Receitas por Categoria (Top 10)</h3><div class="chart-wrap tall"><canvas id="ch-dre-receitas"></canvas></div></div>
+          <div class="panel"><h3>Despesas por Categoria (Top 10)</h3><div class="chart-wrap tall"><canvas id="ch-dre-despesas"></canvas></div></div>
+        </div>
+        <div class="panel"><h3>Detalhamento mês a mês</h3><div class="tbl-wrap"><table class="bi" id="tbl-dre"><thead><tr><th>Mês</th><th>Tipo</th><th>Categoria</th><th class="num">Previsto</th><th class="num">Realizado</th><th class="num">Qtd</th></tr></thead><tbody></tbody></table></div></div>
+      </section>
+      <section id="page-vendas" class="hidden">
+        <div class="page-title"><div><h1>Vendas</h1><div class="subtitle">Transações comerciais registradas no ContaAzul</div></div></div>
+        <div class="grid-kpi" id="kpi-vendas"></div>
+        <div class="panel"><h3>Lista de Vendas</h3><div class="tbl-wrap" style="max-height:560px"><table class="bi" id="tbl-vendas"><thead><tr><th>Nº</th><th>Data</th><th>Cliente</th><th class="num">Valor</th><th>Status</th><th>Tipo</th></tr></thead><tbody></tbody></table></div></div>
+      </section>
+
+      <!-- ===== PAGE: ADMIN ===== -->
+      <section id="page-admin" class="hidden">
+        <div class="page-title">
+          <div>
+            <h1>Administração</h1>
+            <div class="subtitle">Cadastre um novo cliente e traga os dados dele do ContaAzul em 5 passos simples</div>
+          </div>
+        </div>
+
+        <div class="stepper">
+          <div class="step active" data-step="1"><div class="step-num">1</div><div>Dados da Empresa</div></div>
+          <div class="step" data-step="2"><div class="step-num">2</div><div>Autorização</div></div>
+          <div class="step" data-step="3"><div class="step-num">3</div><div>URL de Retorno</div></div>
+          <div class="step" data-step="4"><div class="step-num">4</div><div>Sincronização</div></div>
+          <div class="step" data-step="5"><div class="step-num">5</div><div>Visualizar</div></div>
+        </div>
+
+        <div class="panel admin-step" id="adm-step-1">
+          <h3>Passo 1 — Dados da Empresa</h3>
+          <div class="sub">Informe os dados básicos do cliente que você vai cadastrar no BI</div>
+          <div class="admin-form">
+            <label>Nome da empresa *</label>
+            <input type="text" class="select-box" id="adm-nome" placeholder="Ex: Hotel Fazendinha Ltda">
+            <label>CNPJ (opcional)</label>
+            <input type="text" class="select-box" id="adm-cnpj" placeholder="00.000.000/0001-00">
+            <label>Email de contato (opcional)</label>
+            <input type="text" class="select-box" id="adm-email" placeholder="financeiro@empresa.com.br">
+            <div style="margin-top:16px">
+              <button class="btn-primary" id="adm-btn-1">Cadastrar empresa →</button>
+            </div>
+            <div class="adm-status" id="adm-status-1"></div>
+          </div>
+        </div>
+
+        <div class="panel admin-step disabled" id="adm-step-2">
+          <h3>Passo 2 — Autorização no ContaAzul</h3>
+          <div class="sub">O cliente precisa autorizar o acesso aos dados dele</div>
+          <p>Ao clicar no botão abaixo, uma nova aba do navegador vai abrir com a tela de login do ContaAzul.</p>
+          <div class="help-box"><strong>Importante:</strong> Peça ao seu cliente para fazer login com o usuário e senha do ContaAzul <strong>dele</strong> (não o seu). Após o login, ele será redirecionado para uma URL — essa URL é o que precisaremos no próximo passo.</div>
+          <div>
+            <button class="btn-primary" id="adm-btn-2">Abrir autorização ContaAzul ↗</button>
+          </div>
+          <div class="adm-status" id="adm-status-2"></div>
+        </div>
+
+        <div class="panel admin-step disabled" id="adm-step-3">
+          <h3>Passo 3 — Colar URL de Retorno</h3>
+          <div class="sub">Após o login, copiar a URL inteira do navegador</div>
+          <p>Depois que seu cliente fizer login e autorizar, ele será redirecionado para uma página do ContaAzul. <strong>A URL na barra do navegador é o que importa</strong> — ela contém o código de autorização.</p>
+          <div class="help-box"><strong>Instrução para o cliente:</strong> "Clique na barra de endereço, aperte Ctrl+A para selecionar tudo, Ctrl+C para copiar, e me envie essa URL por mensagem".</div>
+          <div class="admin-form">
+            <label>URL completa do callback</label>
+            <textarea class="select-box" id="adm-url" rows="2" placeholder="https://contaazul.com/?code=xxxxxx&state=xxxxxx"></textarea>
+            <div style="margin-top:12px">
+              <button class="btn-primary" id="adm-btn-3">Processar autorização →</button>
+            </div>
+            <div class="adm-status" id="adm-status-3"></div>
+          </div>
+        </div>
+
+        <div class="panel admin-step disabled" id="adm-step-4">
+          <h3>Passo 4 — Sincronizar Dados</h3>
+          <div class="sub">Buscar tudo do ContaAzul e importar para o BI</div>
+          <p>Agora vamos trazer categorias, vendas, contas a receber e contas a pagar do ContaAzul. Esse processo leva cerca de 30 segundos.</p>
+          <div>
+            <button class="btn-primary" id="adm-btn-4">Sincronizar agora →</button>
+          </div>
+          <div class="adm-status" id="adm-status-4"></div>
+        </div>
+
+        <div class="panel admin-step disabled" id="adm-step-5">
+          <h3>Passo 5 — Visualizar Dashboard</h3>
+          <div class="sub">Tudo pronto! Dados importados e disponíveis</div>
+          <p>Clique no botão abaixo para ir direto ao dashboard da empresa recém-cadastrada. Você verá o resumo executivo, fluxo de caixa, contas a receber e a pagar, DRE e vendas.</p>
+          <div>
+            <button class="btn-primary" id="adm-btn-5">Ver Dashboard desta empresa →</button>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h3>Empresas Cadastradas</h3>
+          <div class="sub">Clientes já configurados no sistema</div>
+          <div class="tbl-wrap">
+            <table class="bi" id="tbl-empresas">
+              <thead>
+                <tr><th>Nome</th><th>CNPJ</th><th>Token</th><th class="num">Parcelas</th><th>Último sync</th><th>Ações</th></tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+</div>
+
+<script>
+const API_BASE = window.location.origin.includes('localhost') || window.location.origin.includes('127.0.0.1')
+  ? window.location.origin : 'http://localhost:8000';
+
+let empresaAtual = null;
+const charts = {};
+
+const fmtBRL = (v) => {
+  if (v == null || isNaN(v)) return '—';
+  return new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL',minimumFractionDigits:2}).format(Number(v));
+};
+const fmtInt = (v) => {
+  if (v == null || isNaN(v)) return '—';
+  return new Intl.NumberFormat('pt-BR').format(Number(v));
+};
+const fmtDate = (s) => {
+  if (!s) return '—';
+  const d = new Date(s + (s.length === 10 ? 'T00:00:00' : ''));
+  return isNaN(d) ? s : d.toLocaleDateString('pt-BR');
+};
+const fmtMonth = (s) => {
+  if (!s) return '—';
+  const d = new Date(s + (s.length === 10 ? 'T00:00:00' : ''));
+  return d.toLocaleDateString('pt-BR',{month:'short', year:'numeric'});
+};
+
+async function fetchJSON(path) {
+  const r = await fetch(API_BASE + path);
+  if (!r.ok) throw new Error(r.status + ' ' + r.statusText);
+  return r.json();
+}
+
+function destroyChart(key) {
+  if (charts[key]) { charts[key].destroy(); delete charts[key]; }
+}
+
+const CHART_DEFAULTS = { color: '#C9B8EA', font: {family: 'Inter', size: 11}, grid: 'rgba(220,200,255,.08)' };
+Chart.defaults.color = CHART_DEFAULTS.color;
+Chart.defaults.font = CHART_DEFAULTS.font;
+Chart.defaults.borderColor = CHART_DEFAULTS.grid;
+
+document.querySelectorAll('.nav-item[data-page]').forEach(el => {
+  el.addEventListener('click', () => {
+    const page = el.dataset.page;
+    document.querySelectorAll('.nav-item[data-page]').forEach(n => n.classList.remove('active'));
+    el.classList.add('active');
+    document.querySelectorAll('main section').forEach(s => s.classList.add('hidden'));
+    document.getElementById('page-'+page).classList.remove('hidden');
+    renderPage(page);
+  });
+});
+
+async function loadEmpresas() {
+  try {
+    const empresas = await fetchJSON('/bi/empresas');
+    const sel = document.getElementById('empresa-select');
+    sel.innerHTML = '';
+    if (empresas.length === 0) { sel.innerHTML = '<option>Nenhuma empresa cadastrada</option>'; return; }
+    empresas.forEach(e => {
+      const opt = document.createElement('option');
+      opt.value = e.id;
+      opt.textContent = e.nome + (e.tem_token ? '' : ' (⚠ sem token)');
+      opt.dataset.ultimoSync = e.ultimo_sync_em || '';
+      sel.appendChild(opt);
+    });
+    sel.addEventListener('change', () => selectEmpresa(sel.value));
+    selectEmpresa(empresas[0].id);
+    document.getElementById('last-sync').textContent =
+      empresas[0].ultimo_sync_em ? new Date(empresas[0].ultimo_sync_em).toLocaleString('pt-BR') : 'nunca';
+  } catch (e) {
+    console.error(e);
+    document.getElementById('sync-status').textContent = 'erro ao carregar empresas';
+    document.getElementById('sync-status').className = 'sync-status err';
+  }
+}
+
+function selectEmpresa(id) {
+  empresaAtual = id;
+  const sel = document.getElementById('empresa-select');
+  sel.value = id;
+  const ultimoSync = sel.selectedOptions[0]?.dataset.ultimoSync;
+  document.getElementById('last-sync').textContent =
+    ultimoSync ? new Date(ultimoSync).toLocaleString('pt-BR') : 'nunca';
+  const activePage = document.querySelector('.nav-item.active[data-page]').dataset.page;
+  renderPage(activePage);
+}
+
+document.getElementById('btn-sync').addEventListener('click', async () => {
+  if (!empresaAtual) return;
+  const btn = document.getElementById('btn-sync');
+  const status = document.getElementById('sync-status');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="loader"></span>  Sincronizando...';
+  status.textContent = 'chamando API...';
+  status.className = 'sync-status';
+  try {
+    const r = await fetch(API_BASE + '/sync/' + empresaAtual, {method: 'POST'});
+    if (!r.ok) throw new Error(r.statusText);
+    status.textContent = 'sync iniciado em background';
+    status.className = 'sync-status ok';
+    setTimeout(() => {
+      const activePage = document.querySelector('.nav-item.active[data-page]').dataset.page;
+      renderPage(activePage);
+      loadEmpresas();
+    }, 5000);
+  } catch (e) {
+    status.textContent = 'erro: ' + e.message;
+    status.className = 'sync-status err';
+  }
+  btn.disabled = false;
+  btn.textContent = 'Sincronizar dados';
+});
+
+async function renderPage(page) {
+  if (!empresaAtual) return;
+  if (page === 'resumo') await renderResumo();
+  else if (page === 'fluxo') await renderFluxo();
+  else if (page === 'receber') await renderParcelas('RECEBER', 'receber');
+  else if (page === 'pagar') await renderParcelas('PAGAR', 'pagar');
+  else if (page === 'dre') await renderDRE();
+  else if (page === 'vendas') await renderVendas();
+  else if (page === 'admin') await renderAdmin();
+}
+
+async function renderResumo() {
+  try {
+    const [kpis, aging, topCat] = await Promise.all([
+      fetchJSON('/bi/' + empresaAtual + '/kpis'),
+      fetchJSON('/bi/' + empresaAtual + '/aging'),
+      fetchJSON('/bi/' + empresaAtual + '/ranking-categorias?tipo=RECEITA&top=10'),
+    ]);
+    const cards = [
+      {label: 'Total a Receber', value: fmtBRL(kpis.total_a_receber), color: 'blue', sub: fmtInt(kpis.qtd_receber) + ' parcela(s)'},
+      {label: 'Total Recebido', value: fmtBRL(kpis.total_recebido), color: 'green', sub: 'realizado'},
+      {label: 'Total a Pagar', value: fmtBRL(kpis.total_a_pagar), color: 'red', sub: fmtInt(kpis.qtd_pagar) + ' parcela(s)'},
+      {label: 'Total Pago', value: fmtBRL(kpis.total_pago), color: '', sub: 'realizado'},
+      {label: 'Receber Vencido', value: fmtBRL(kpis.receber_vencido), color: 'gold', sub: 'em atraso'},
+      {label: 'Saldo Projetado', value: fmtBRL(kpis.saldo_projetado), color: kpis.saldo_projetado >= 0 ? 'green' : 'red', sub: 'líquido a realizar'},
+    ];
+    document.getElementById('kpi-cards').innerHTML = cards.map(c =>
+      '<div class="kpi ' + (c.color||'') + '"><div class="kpi-label">' + c.label + '</div><div class="kpi-value">' + c.value + '</div><div class="kpi-sub">' + c.sub + '</div></div>'
+    ).join('');
+
+    const agR = aging.filter(a => a.tipo === 'RECEBER');
+    destroyChart('agR');
+    charts.agR = new Chart(document.getElementById('ch-aging-receber'), {
+      type: 'bar',
+      data: { labels: agR.map(a => a.faixa),
+        datasets: [{ label: 'Saldo aberto (R$)', data: agR.map(a => a.saldo_aberto),
+          backgroundColor: ['#10B981','#F59E0B','#F97316','#EF4444','#991B1B'], borderRadius: 6 }] },
+      options: { maintainAspectRatio: false, plugins: {legend: {display: false}},
+        scales: { y: {ticks: {callback: v => fmtBRL(v)}, grid: {color: CHART_DEFAULTS.grid}},
+                  x: {grid: {display: false}} } }
+    });
+
+    const agP = aging.filter(a => a.tipo === 'PAGAR');
+    destroyChart('agP');
+    charts.agP = new Chart(document.getElementById('ch-aging-pagar'), {
+      type: 'bar',
+      data: { labels: agP.length ? agP.map(a => a.faixa) : ['Sem dados'],
+        datasets: [{ label: 'Saldo aberto (R$)', data: agP.length ? agP.map(a => a.saldo_aberto) : [0],
+          backgroundColor: ['#3B82F6','#8B5CF6','#A855F7','#EC2E9A','#831843'], borderRadius: 6 }] },
+      options: { maintainAspectRatio: false, plugins: {legend: {display: false}},
+        scales: { y: {ticks: {callback: v => fmtBRL(v)}, grid: {color: CHART_DEFAULTS.grid}},
+                  x: {grid: {display: false}} } }
+    });
+
+    destroyChart('topCat');
+    charts.topCat = new Chart(document.getElementById('ch-top-categorias'), {
+      type: 'bar',
+      data: { labels: topCat.map(c => c.categoria),
+        datasets: [ {label: 'Realizado', data: topCat.map(c => c.realizado), backgroundColor: '#10B981', borderRadius: 5},
+                    {label: 'Previsto',  data: topCat.map(c => c.previsto),  backgroundColor: '#9333EA', borderRadius: 5} ] },
+      options: { maintainAspectRatio: false, indexAxis: 'y', plugins: {legend: {position: 'top'}},
+        scales: { x: {ticks: {callback: v => fmtBRL(v)}, grid: {color: CHART_DEFAULTS.grid}},
+                  y: {grid: {display: false}} } }
+    });
+  } catch (e) {
+    console.error(e);
+    document.getElementById('kpi-cards').innerHTML =
+      '<div class="panel"><div class="empty-state"><h4>Erro carregando dados</h4><div>' + e.message + '</div></div></div>';
+  }
+}
+
+async function renderFluxo() {
+  try {
+    const dados = await fetchJSON('/bi/' + empresaAtual + '/fluxo-caixa');
+    if (dados.length === 0) {
+      document.querySelector('#page-fluxo .chart-wrap').innerHTML = '<div class="empty-state"><h4>Sem dados</h4></div>';
+      return;
+    }
+    const labels = dados.map(d => fmtDate(d.data));
+    destroyChart('fluxo');
+    charts.fluxo = new Chart(document.getElementById('ch-fluxo'), {
+      type: 'line',
+      data: { labels,
+        datasets: [
+          {label: 'Entrada Realizada', data: dados.map(d=>d.entrada_realizada), borderColor: '#10B981', tension: .3, fill: false},
+          {label: 'Saída Realizada', data: dados.map(d=>d.saida_realizada), borderColor: '#EF4444', tension: .3, fill: false},
+          {label: 'Entrada Prevista', data: dados.map(d=>d.entrada_prevista), borderColor: '#22D3EE', borderDash: [5,5], tension: .3, fill: false},
+          {label: 'Saída Prevista',   data: dados.map(d=>d.saida_prevista),   borderColor: '#F59E0B', borderDash: [5,5], tension: .3, fill: false},
+        ] },
+      options: { maintainAspectRatio: false, plugins: {legend: {position: 'top'}},
+        scales: { y: {ticks: {callback: v => fmtBRL(v)}, grid: {color: CHART_DEFAULTS.grid}},
+                  x: {grid: {display: false}} } }
+    });
+
+    let saldo = 0;
+    const saldoData = dados.map(d => { saldo += (d.entrada_realizada - d.saida_realizada); return saldo; });
+    destroyChart('saldo');
+    charts.saldo = new Chart(document.getElementById('ch-saldo-acum'), {
+      type: 'line',
+      data: {labels, datasets: [{label: 'Saldo acumulado', data: saldoData,
+        borderColor: '#A855F7', backgroundColor: 'rgba(168,85,247,.15)', tension: .3, fill: true }]},
+      options: { maintainAspectRatio: false, plugins: {legend: {display: false}},
+        scales: { y: {ticks: {callback: v => fmtBRL(v)}, grid: {color: CHART_DEFAULTS.grid}},
+                  x: {grid: {display: false}} } }
+    });
+
+    const totais = dados.reduce((acc, d) => {
+      acc.entRea += d.entrada_realizada; acc.entPre += d.entrada_prevista;
+      acc.saiRea += d.saida_realizada;   acc.saiPre += d.saida_prevista;
+      return acc;
+    }, {entRea:0, entPre:0, saiRea:0, saiPre:0});
+    document.querySelector('#tbl-fluxo-totais tbody').innerHTML =
+      '<tr><td>Total Entrada Realizada</td><td class="num">' + fmtBRL(totais.entRea) + '</td></tr>' +
+      '<tr><td>Total Saída Realizada</td><td class="num">' + fmtBRL(totais.saiRea) + '</td></tr>' +
+      '<tr><td>Total Entrada Prevista</td><td class="num">' + fmtBRL(totais.entPre) + '</td></tr>' +
+      '<tr><td>Total Saída Prevista</td><td class="num">' + fmtBRL(totais.saiPre) + '</td></tr>' +
+      '<tr><td><strong>Saldo Realizado</strong></td><td class="num"><strong>' + fmtBRL(totais.entRea - totais.saiRea) + '</strong></td></tr>' +
+      '<tr><td><strong>Saldo Previsto</strong></td><td class="num"><strong>' + fmtBRL(totais.entPre - totais.saiPre) + '</strong></td></tr>';
+  } catch (e) { console.error(e); }
+}
+
+async function renderParcelas(tipo, pageId) {
+  try {
+    const parc = await fetchJSON('/bi/' + empresaAtual + '/parcelas?limite=500');
+    const filtradas = parc.filter(p => p.tipo === tipo);
+    const tbody = document.querySelector('#tbl-' + pageId + ' tbody');
+    tbody.innerHTML = filtradas.map(p => {
+      const situ = p.situacao_calculada || '—';
+      const pillClass = situ === 'LIQUIDADO' ? 'liq' :
+                        situ === 'VENCIDO' ? 'vencido' :
+                        situ.indexOf('VENCER') >= 0 ? 'avencer' : 'aberto';
+      return '<tr>' +
+        '<td>' + (p.pessoa_nome || '—') + '</td>' +
+        '<td>' + (p.descricao || '—') + '</td>' +
+        '<td>' + fmtDate(p.data_vencimento) + '</td>' +
+        '<td>' + fmtDate(p.data_pagamento) + '</td>' +
+        '<td class="num">' + fmtBRL(p.valor_previsto) + '</td>' +
+        '<td class="num">' + fmtBRL(p.valor_pago) + '</td>' +
+        '<td class="num">' + fmtBRL(p.saldo_aberto) + '</td>' +
+        '<td><span class="pill ' + pillClass + '">' + situ + '</span></td>' +
+        '<td class="num">' + (p.dias_atraso > 0 ? p.dias_atraso : '—') + '</td>' +
+        '</tr>';
+    }).join('');
+    const total = filtradas.reduce((s,p) => s + p.valor_previsto, 0);
+    const totalAberto = filtradas.reduce((s,p) => s + p.saldo_aberto, 0);
+    document.getElementById('sub-' + pageId).textContent =
+      filtradas.length + ' parcela(s) • Total previsto: ' + fmtBRL(total) + ' • Saldo aberto: ' + fmtBRL(totalAberto);
+  } catch (e) { console.error(e); }
+}
+
+async function renderDRE() {
+  try {
+    const [rec, desp, dre] = await Promise.all([
+      fetchJSON('/bi/' + empresaAtual + '/ranking-categorias?tipo=RECEITA&top=10'),
+      fetchJSON('/bi/' + empresaAtual + '/ranking-categorias?tipo=DESPESA&top=10'),
+      fetchJSON('/bi/' + empresaAtual + '/dre'),
+    ]);
+    destroyChart('dreRec');
+    charts.dreRec = new Chart(document.getElementById('ch-dre-receitas'), {
+      type: 'bar',
+      data: { labels: rec.map(r => r.categoria),
+        datasets: [ {label: 'Realizado', data: rec.map(r=>r.realizado), backgroundColor: '#10B981', borderRadius: 5},
+                    {label: 'Previsto',  data: rec.map(r=>r.previsto),  backgroundColor: '#22D3EE', borderRadius: 5} ] },
+      options: { maintainAspectRatio: false, indexAxis: 'y', plugins: {legend: {position: 'top'}},
+        scales: {x: {ticks: {callback: v => fmtBRL(v)}, grid: {color: CHART_DEFAULTS.grid}}, y: {grid: {display: false}}} }
+    });
+    destroyChart('dreDesp');
+    charts.dreDesp = new Chart(document.getElementById('ch-dre-despesas'), {
+      type: 'bar',
+      data: { labels: desp.length ? desp.map(r => r.categoria) : ['Sem dados'],
+        datasets: [ {label: 'Realizado', data: desp.length ? desp.map(r=>r.realizado) : [0], backgroundColor: '#EF4444', borderRadius: 5},
+                    {label: 'Previsto',  data: desp.length ? desp.map(r=>r.previsto)  : [0], backgroundColor: '#F59E0B', borderRadius: 5} ] },
+      options: { maintainAspectRatio: false, indexAxis: 'y', plugins: {legend: {position: 'top'}},
+        scales: {x: {ticks: {callback: v => fmtBRL(v)}, grid: {color: CHART_DEFAULTS.grid}}, y: {grid: {display: false}}} }
+    });
+    const tbody = document.querySelector('#tbl-dre tbody');
+    tbody.innerHTML = dre.map(r =>
+      '<tr>' +
+      '<td>' + fmtMonth(r.mes) + '</td>' +
+      '<td><span class="pill ' + (r.tipo_categoria === 'RECEITA' ? 'rec' : 'pag') + '">' + (r.tipo_categoria || '—') + '</span></td>' +
+      '<td>' + (r.categoria || '(sem categoria)') + '</td>' +
+      '<td class="num">' + fmtBRL(r.valor_previsto) + '</td>' +
+      '<td class="num">' + fmtBRL(r.valor_realizado) + '</td>' +
+      '<td class="num">' + fmtInt(r.qtd_lancamentos) + '</td>' +
+      '</tr>'
+    ).join('');
+  } catch (e) { console.error(e); }
+}
+
+async function renderVendas() {
+  try {
+    const vendas = await fetchJSON('/bi/' + empresaAtual + '/vendas');
+    const total = vendas.reduce((s,v) => s + v.valor_total, 0);
+    const ticket = vendas.length ? total / vendas.length : 0;
+    const aprovadas = vendas.filter(v => (v.status||'').toUpperCase() === 'APROVADO').length;
+    document.getElementById('kpi-vendas').innerHTML =
+      '<div class="kpi blue"><div class="kpi-label">Total de Vendas</div><div class="kpi-value">' + fmtInt(vendas.length) + '</div><div class="kpi-sub">transações</div></div>' +
+      '<div class="kpi green"><div class="kpi-label">Receita Bruta</div><div class="kpi-value">' + fmtBRL(total) + '</div><div class="kpi-sub">somatório</div></div>' +
+      '<div class="kpi gold"><div class="kpi-label">Ticket Médio</div><div class="kpi-value">' + fmtBRL(ticket) + '</div><div class="kpi-sub">por venda</div></div>' +
+      '<div class="kpi"><div class="kpi-label">Aprovadas</div><div class="kpi-value">' + fmtInt(aprovadas) + '</div><div class="kpi-sub">de ' + fmtInt(vendas.length) + '</div></div>';
+    const tbody = document.querySelector('#tbl-vendas tbody');
+    tbody.innerHTML = vendas.map(v =>
+      '<tr>' +
+      '<td>' + (v.numero != null ? v.numero : '—') + '</td>' +
+      '<td>' + fmtDate(v.data_venda) + '</td>' +
+      '<td>' + (v.cliente_nome || '—') + '</td>' +
+      '<td class="num">' + fmtBRL(v.valor_total) + '</td>' +
+      '<td><span class="pill ' + ((v.status||'').toUpperCase() === 'APROVADO' ? 'rec' : 'aberto') + '">' + (v.status || '—') + '</span></td>' +
+      '<td>' + (v.descricao || '—') + '</td>' +
+      '</tr>'
+    ).join('');
+  } catch (e) { console.error(e); }
+}
+
+// ========================================================
+// Página Administração - workflow guiado de cadastro
+// ========================================================
+let adminEmpresaId = null;
+
+function adminSetStep(n) {
+  for (let i = 1; i <= 5; i++) {
+    const el = document.getElementById('adm-step-' + i);
+    const st = document.querySelector('.step[data-step="' + i + '"]');
+    if (!el || !st) continue;
+    st.classList.remove('active','done');
+    if (i < n) { st.classList.add('done'); el.classList.remove('disabled'); }
+    else if (i === n) { st.classList.add('active'); el.classList.remove('disabled'); }
+    else { el.classList.add('disabled'); }
+  }
+}
+
+function adminStatus(id, msg, type) {
+  const el = document.getElementById('adm-status-' + id);
+  if (!el) return;
+  el.textContent = msg;
+  el.className = 'adm-status show ' + (type || 'info');
+}
+
+async function renderAdmin() {
+  try {
+    const empresas = await fetchJSON('/bi/empresas');
+    const tbody = document.querySelector('#tbl-empresas tbody');
+    tbody.innerHTML = empresas.map(e =>
+      '<tr>' +
+      '<td>' + e.nome + '</td>' +
+      '<td>' + (e.cnpj || '—') + '</td>' +
+      '<td>' + (e.tem_token ? '<span class="pill rec">OK</span>' : '<span class="pill vencido">Pendente</span>') + '</td>' +
+      '<td class="num">' + fmtInt(e.qtd_parcelas) + '</td>' +
+      '<td>' + (e.ultimo_sync_em ? new Date(e.ultimo_sync_em).toLocaleString('pt-BR') : '—') + '</td>' +
+      '<td>' +
+        '<button class="btn-sm" onclick="adminVerDashboard(\'' + e.id + '\')">Ver</button>' +
+        '<button class="btn-sm" onclick="adminResync(\'' + e.id + '\')">Sync</button>' +
+        '<button class="btn-sm" onclick="adminReauth(\'' + e.id + '\')">Refazer OAuth</button>' +
+      '</td>' +
+      '</tr>'
+    ).join('');
+  } catch (err) { console.error(err); }
+}
+
+function adminVerDashboard(id) {
+  selectEmpresa(id);
+  document.querySelector('.nav-item[data-page="resumo"]').click();
+}
+
+async function adminResync(id) {
+  try {
+    const r = await fetch(API_BASE + '/sync/' + id, {method:'POST'});
+    if (!r.ok) throw new Error(r.statusText);
+    alert('Sincronização iniciada em background. Aguarde ~30s e verifique o dashboard.');
+  } catch (e) { alert('Erro: ' + e.message); }
+}
+
+function adminReauth(id) {
+  window.open(API_BASE + '/auth/authorize?empresa_id=' + id, '_blank');
+}
+
+// Botão 1 - Cadastrar empresa
+document.getElementById('adm-btn-1').addEventListener('click', async () => {
+  const nome = document.getElementById('adm-nome').value.trim();
+  const cnpj = document.getElementById('adm-cnpj').value.trim();
+  const email = document.getElementById('adm-email').value.trim();
+  if (!nome) { adminStatus(1, 'Nome da empresa é obrigatório', 'err'); return; }
+  adminStatus(1, 'Criando empresa...', 'info');
+  try {
+    const r = await fetch(API_BASE + '/clientes', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({nome, cnpj: cnpj || null, email_contato: email || null, sync_ativo: true, sync_frequencia_min: 60})
+    });
+    if (!r.ok) { const t = await r.text(); throw new Error(t); }
+    const data = await r.json();
+    adminEmpresaId = data.id;
+    adminStatus(1, '✓ Empresa criada com sucesso (ID: ' + data.id + ')', 'ok');
+    adminSetStep(2);
+    await loadEmpresas();
+    renderAdmin();
+  } catch (e) { adminStatus(1, 'Erro: ' + e.message, 'err'); }
+});
+
+// Botão 2 - Abrir autorização
+document.getElementById('adm-btn-2').addEventListener('click', () => {
+  if (!adminEmpresaId) { adminStatus(2, 'Complete o passo 1 primeiro', 'err'); return; }
+  window.open(API_BASE + '/auth/authorize?empresa_id=' + adminEmpresaId, '_blank');
+  adminStatus(2, '✓ Aba de autorização aberta. Aguarde o cliente fazer login e traga a URL para o passo 3.', 'ok');
+  adminSetStep(3);
+});
+
+// Botão 3 - Processar callback
+document.getElementById('adm-btn-3').addEventListener('click', async () => {
+  const url = document.getElementById('adm-url').value.trim();
+  if (!adminEmpresaId) { adminStatus(3, 'Complete o passo 1 primeiro', 'err'); return; }
+  if (!url) { adminStatus(3, 'Cole a URL completa recebida do cliente', 'err'); return; }
+  if (!url.includes('code=') || !url.includes('state=')) {
+    adminStatus(3, 'URL invalida - precisa ter code= e state= nela', 'err'); return;
+  }
+  adminStatus(3, 'Processando autorização...', 'info');
+  try {
+    const form = new FormData();
+    form.append('empresa_id', adminEmpresaId);
+    form.append('callback_url', url);
+    const r = await fetch(API_BASE + '/auth/exchange', {method: 'POST', body: form});
+    if (!r.ok) { const t = await r.text(); throw new Error(t); }
+    adminStatus(3, '✓ Autorização concluída. Tokens salvos de forma segura.', 'ok');
+    adminSetStep(4);
+  } catch (e) { adminStatus(3, 'Erro: ' + e.message + ' — o code pode ter expirado (3 min). Refaça o passo 2.', 'err'); }
+});
+
+// Botão 4 - Disparar sync
+document.getElementById('adm-btn-4').addEventListener('click', async () => {
+  if (!adminEmpresaId) return;
+  const btn = document.getElementById('adm-btn-4');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="loader"></span>  Sincronizando...';
+  adminStatus(4, 'Buscando dados do ContaAzul... aguarde ~30 segundos', 'info');
+  try {
+    const r = await fetch(API_BASE + '/sync/' + adminEmpresaId, {method: 'POST'});
+    if (!r.ok) throw new Error(r.statusText);
+    setTimeout(() => {
+      adminStatus(4, '✓ Sincronização concluída!', 'ok');
+      adminSetStep(5);
+      btn.disabled = false;
+      btn.textContent = 'Sincronizar novamente';
+      loadEmpresas();
+    }, 15000);
+  } catch (e) {
+    adminStatus(4, 'Erro: ' + e.message, 'err');
+    btn.disabled = false;
+    btn.textContent = 'Sincronizar agora →';
+  }
+});
+
+// Botão 5 - Ver dashboard
+document.getElementById('adm-btn-5').addEventListener('click', () => {
+  if (!adminEmpresaId) return;
+  adminVerDashboard(adminEmpresaId);
+});
+
+loadEmpresas();
+</script>
+</body>
+</html>

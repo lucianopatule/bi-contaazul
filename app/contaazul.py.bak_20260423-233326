@@ -1,0 +1,128 @@
+"""
+Cliente HTTP para a API ContaAzul v2 (https://api-v2.contaazul.com/v1).
+
+Responsabilidades:
+    - Chamadas autenticadas (Bearer token)
+    - Retry exponencial em 429/5xx
+    - Paginação automática (detecta chaves comuns: itens|items|data|result)
+"""
+from __future__ import annotations
+
+from typing import Any, Iterator
+
+import httpx
+from tenacity import (
+    retry,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_exponential,
+)
+
+from .config import settings
+
+LIST_KEYS = ("itens", "items", "data", "result", "content")
+
+
+class ContaAzulAPIError(Exception):
+    pass
+
+
+class ContaAzulClient:
+    """Thin wrapper sobre httpx. Um client por tenant (access_token específico)."""
+
+    def __init__(self, access_token: str, timeout: float = 30.0):
+        self._client = httpx.Client(
+            base_url=settings.ca_api_base,
+            headers={
+                "Authorization": f"Bearer {access_token}",
+                "Accept": "application/json",
+            },
+            timeout=timeout,
+        )
+
+    def close(self) -> None:
+        self._client.close()
+
+    def __enter__(self) -> "ContaAzulClient":
+        return self
+
+    def __exit__(self, *_exc) -> None:
+        self.close()
+
+    # ---- GET com retry -------------------------------------------------------
+    @retry(
+        retry=retry_if_exception_type((httpx.TransportError, ContaAzulAPIError)),
+        stop=stop_after_attempt(5),
+        wait=wait_exponential(multiplier=1, min=1, max=30),
+        reraise=True,
+    )
+    def _get(self, path: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
+        resp = self._client.get(path, params=params or {})
+        if resp.status_code == 429 or resp.status_code >= 500:
+            raise ContaAzulAPIError(f"HTTP {resp.status_code} em {path}: {resp.text[:200]}")
+        if resp.status_code >= 400:
+            # Erros 4xx (exceto 429) não são retry-able
+            raise RuntimeError(f"HTTP {resp.status_code} em {path}: {resp.text[:500]}")
+        return resp.json()
+
+    # ---- Paginação ----------------------------------------------------------
+    def paginate(
+        self,
+        path: str,
+        params: dict[str, Any] | None = None,
+        page_size: int = 100,
+    ) -> Iterator[dict[str, Any]]:
+        """Itera todos os itens. Tenta padrão pagina/tamanho_pagina (ContaAzul v2)."""
+        params = dict(params or {})
+        pagina = 0
+        while True:
+            q = {**params, "pagina": pagina, "tamanho_pagina": page_size}
+            data = self._get(path, q)
+
+            items = self._extract_list(data)
+            if not items:
+                break
+
+            for it in items:
+                yield it
+
+            if len(items) < page_size:
+                break
+            pagina += 1
+
+    @staticmethod
+    def _extract_list(data: Any) -> list[dict[str, Any]]:
+        if isinstance(data, list):
+            return data
+        if isinstance(data, dict):
+            for k in LIST_KEYS:
+                if k in data and isinstance(data[k], list):
+                    return data[k]
+            # fallback: primeiro valor que for lista
+            for v in data.values():
+                if isinstance(v, list):
+                    return v
+        return []
+
+    # ---- Endpoints de interesse ---------------------------------------------
+    def listar_categorias(self) -> Iterator[dict[str, Any]]:
+        yield from self.paginate("/categorias")
+
+    def listar_centros_custo(self) -> Iterator[dict[str, Any]]:
+        yield from self.paginate("/centro-de-custo")
+
+    def listar_contas_financeiras(self) -> Iterator[dict[str, Any]]:
+        yield from self.paginate("/conta-financeira")
+
+    def buscar_contas_pagar(self, filtros: dict[str, Any] | None = None) -> Iterator[dict[str, Any]]:
+        yield from self.paginate("/financeiro/eventos-financeiros/contas-a-pagar/buscar", filtros)
+
+    def buscar_contas_receber(self, filtros: dict[str, Any] | None = None) -> Iterator[dict[str, Any]]:
+        yield from self.paginate("/financeiro/eventos-financeiros/contas-a-receber/buscar", filtros)
+
+    def parcelas_do_evento(self, evento_id: str) -> list[dict[str, Any]]:
+        data = self._get(f"/financeiro/eventos-financeiros/{evento_id}/parcelas")
+        return self._extract_list(data)
+
+    def listar_vendas(self, filtros: dict[str, Any] | None = None) -> Iterator[dict[str, Any]]:
+        yield from self.paginate("/venda", filtros)

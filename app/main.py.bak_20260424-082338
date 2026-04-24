@@ -1,0 +1,63 @@
+"""
+Entrypoint FastAPI — bi_conta_azul MVP (multi-tenant).
+
+Rodar:
+    uvicorn app.main:app --reload
+"""
+from __future__ import annotations
+
+import logging
+
+from fastapi import FastAPI
+
+from .config import settings
+from .db import close_pool, get_pool
+from .routers import auth, clientes, sync
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+)
+
+app = FastAPI(
+    title="bi_conta_azul — PED Intelligence",
+    description="ETL multi-tenant ContaAzul → Postgres → BI",
+    version="0.1.0",
+)
+
+app.include_router(clientes.router)
+app.include_router(auth.router)
+app.include_router(sync.router)
+
+
+@app.on_event("startup")
+def _startup() -> None:
+    get_pool()  # pré-abre o pool
+
+
+@app.on_event("shutdown")
+def _shutdown() -> None:
+    close_pool()
+
+
+@app.get("/", tags=["meta"])
+def root():
+    return {
+        "app": "bi_conta_azul",
+        "empresa": "PED Intelligence",
+        "cliente": "JF Consultoria Empresarial",
+        "api_base": settings.ca_api_base,
+        "docs": "/docs",
+    }
+
+
+@app.get("/health", tags=["meta"])
+def health():
+    try:
+        pool = get_pool()
+        with pool.connection() as conn, conn.cursor() as cur:
+            cur.execute("SELECT 1")
+            cur.fetchone()
+        return {"status": "ok", "db": "ok"}
+    except Exception as e:  # noqa: BLE001
+        return {"status": "degraded", "db": f"erro: {e}"}
